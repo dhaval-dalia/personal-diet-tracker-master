@@ -101,21 +101,65 @@ const MealLogger: React.FC = () => {
     name: 'food_items',
   });
 
+  // Type guards
+  function isQuickAddFoodInputs(food: any): food is QuickAddFoodInputs {
+    return (
+      typeof food === 'object' &&
+      'calories_per_serving' in food &&
+      'protein_per_serving' in food &&
+      'carbs_per_serving' in food &&
+      'fat_per_serving' in food &&
+      'serving_size' in food &&
+      'serving_unit' in food
+    );
+  }
+
+  function isSearchedOrScannedFoodItem(food: any): food is SearchedFoodItem | ScannedFoodItem {
+    return (
+      typeof food === 'object' &&
+      'calories_per_serving' in food &&
+      'protein_per_serving' in food &&
+      'carbs_per_serving' in food &&
+      'fat_per_serving' in food &&
+      'serving_size' in food &&
+      'serving_unit' in food
+    );
+  }
+
   const handleAddFoodItem = useCallback((food: SearchedFoodItem | ScannedFoodItem | QuickAddFoodInputs) => {
     console.log('Adding food item:', food);
-    const foodWithQuantity: FoodItemData = {
-      id: 'id' in food ? food.id : undefined,
-      name: food.name,
-      calories: food.calories_per_serving,
-      protein: food.protein_per_serving,
-      carbs: food.carbs_per_serving,
-      fat: food.fat_per_serving,
-      quantity: 'serving_size' in food ? food.serving_size : 1,
-      unit: food.serving_unit,
-      barcode: food.barcode
-    };
-    
-    const existingIndex = fields.findIndex(item => item.name === food.name && item.unit === food.serving_unit);
+    let foodWithQuantity: FoodItemData;
+    if (isQuickAddFoodInputs(food)) {
+      foodWithQuantity = {
+        name: food.name,
+        calories: food.calories_per_serving,
+        protein: food.protein_per_serving,
+        carbs: food.carbs_per_serving,
+        fat: food.fat_per_serving,
+        quantity: food.serving_size,
+        unit: food.serving_unit,
+        barcode: food.barcode
+      };
+    } else if (isSearchedOrScannedFoodItem(food)) {
+      const typedFood = food as SearchedFoodItem | ScannedFoodItem;
+      foodWithQuantity = {
+        id: typedFood.id,
+        name: typedFood.name,
+        calories: typedFood.calories_per_serving ?? 0,
+        protein: typedFood.protein_per_serving ?? 0,
+        carbs: typedFood.carbs_per_serving ?? 0,
+        fat: typedFood.fat_per_serving ?? 0,
+        quantity: typedFood.serving_size ?? 1,
+        unit: typedFood.serving_unit,
+        barcode: typedFood.barcode
+      };
+    } else {
+      // fallback, should not happen
+      console.warn('Unknown food item type:', food);
+      return;
+    }
+
+    const existingIndex = fields.findIndex(item => item.name === foodWithQuantity.name && item.unit === foodWithQuantity.unit);
 
     if (existingIndex > -1) {
       const currentQuantity = getValues(`food_items.${existingIndex}.quantity`) || 0;
@@ -123,7 +167,6 @@ const MealLogger: React.FC = () => {
     } else {
       append(foodWithQuantity);
     }
-    
     // Close all modals
     onFoodSearchClose();
     onBarcodeScannerClose();

@@ -29,7 +29,6 @@ import { supabase } from '../../services/supabase';
 import DailyOverview from './DailyOverview';
 import NutritionChart from './NutritionChart';
 import ProgressTracker from './ProgressTracker';
-import RecommendationCard from './RecommendationCard';
 import MacroPieChart from './MacroPieChart';
 import { User } from '@supabase/supabase-js';
 
@@ -109,7 +108,7 @@ const Dashboard: React.FC = () => {
   const [weight, setWeight] = useState('');
   const [weightHistory, setWeightHistory] = useState<WeightLog[]>([]);
   const [todayCalories, setTodayCalories] = useState('');
-  const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<{ category: string; message: string; action?: string; actionText?: string }[]>([]);
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -213,10 +212,10 @@ const Dashboard: React.FC = () => {
 
       // Calculate nutrition data from meals (use total_* fields)
       const nutrition = meals.reduce((acc, meal) => ({
-        calories: acc.calories + (meal.total_calories || 0),
-        protein: acc.protein + (meal.total_protein || 0),
-        carbs: acc.carbs + (meal.total_carbs || 0),
-        fat: acc.fat + (meal.total_fat || 0),
+        calories: Math.ceil((acc.calories + (meal.total_calories || 0)) * 10) / 10,
+        protein: Math.ceil((acc.protein + (meal.total_protein || 0)) * 10) / 10,
+        carbs: Math.ceil((acc.carbs + (meal.total_carbs || 0)) * 10) / 10,
+        fat: Math.ceil((acc.fat + (meal.total_fat || 0)) * 10) / 10,
       }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
       console.log('Calculated nutrition:', nutrition);
@@ -232,10 +231,10 @@ const Dashboard: React.FC = () => {
       if (goalsError) throw goalsError;
       if (userGoals) {
         const mappedGoals = {
-          calories: userGoals.target_calories,
-          protein: (parseFloat(userGoals.target_protein_ratio) / 100) * userGoals.target_calories / 4,
-          carbs: (parseFloat(userGoals.target_carbs_ratio) / 100) * userGoals.target_calories / 4,
-          fat: (parseFloat(userGoals.target_fat_ratio) / 100) * userGoals.target_calories / 9,
+          calories: Math.ceil(userGoals.target_calories * 10) / 10,
+          protein: Math.ceil((parseFloat(userGoals.target_protein_ratio) / 100) * userGoals.target_calories / 4 * 10) / 10,
+          carbs: Math.ceil((parseFloat(userGoals.target_carbs_ratio) / 100) * userGoals.target_calories / 4 * 10) / 10,
+          fat: Math.ceil((parseFloat(userGoals.target_fat_ratio) / 100) * userGoals.target_calories / 9 * 10) / 10,
         };
         console.log('Mapped goals:', mappedGoals);
         setGoals(mappedGoals);
@@ -278,7 +277,7 @@ const Dashboard: React.FC = () => {
         .insert([
           {
             user_id: user.id,
-            weight: parseFloat(weight),
+            weight: Math.ceil(parseFloat(weight) * 10) / 10,
             created_at: new Date().toISOString(),
           },
         ]);
@@ -342,14 +341,14 @@ const Dashboard: React.FC = () => {
   };
 
   const generateRecommendations = () => {
-    const recs: string[] = [];
+    const recs: { category: string; message: string; action?: string; actionText?: string }[] = [];
     
     // Nutrition recommendations
     const caloriePercentage = (nutritionData.calories / goals.calories) * 100;
     if (caloriePercentage < 80) {
-      recs.push('You\'re below your calorie goal. Consider adding a healthy snack.');
+      recs.push({ category: 'Nutrition', message: 'You\'re below your calorie goal. Consider adding a healthy snack.' });
     } else if (caloriePercentage > 120) {
-      recs.push('You\'re above your calorie goal. Consider lighter options for your next meal.');
+      recs.push({ category: 'Nutrition', message: 'You\'re above your calorie goal. Consider lighter options for your next meal.' });
     }
 
     // Weight recommendations
@@ -357,11 +356,15 @@ const Dashboard: React.FC = () => {
       const latestWeight = weightHistory[0].weight;
       const previousWeight = weightHistory[1]?.weight;
       if (previousWeight && latestWeight > previousWeight) {
-        recs.push('Your weight has increased. Consider reviewing your calorie intake.');
+        recs.push({ category: 'Weight', message: 'Your weight has increased. Consider reviewing your calorie intake.' });
       }
     }
 
-    setRecommendations(recs);
+    setRecommendations(
+      Array.isArray(recs)
+        ? recs.map(rec => typeof rec === 'string' ? { category: 'Other', message: rec } : rec)
+        : []
+    );
   };
 
   const handleNavigate = (view: string) => {
@@ -641,10 +644,44 @@ const Dashboard: React.FC = () => {
           <Heading size="md">Recommendations</Heading>
         </CardHeader>
         <CardBody>
-          <VStack spacing={2} align="stretch">
-            {recommendations.length > 0 ? (
-              recommendations.map((rec, index) => (
-                <Text key={index}>• {rec}</Text>
+          <VStack spacing={4} align="stretch">
+            {Array.isArray(recommendations) && recommendations.length > 0 ? (
+              // Group by category
+              Object.entries(recommendations.reduce((acc: Record<string, any[]>, rec) => {
+                const cat = rec.category || 'Other';
+                if (!acc[cat]) acc[cat] = [];
+                acc[cat].push(rec);
+                return acc;
+              }, {})).map(([category, recs]) => (
+                <Card key={category} variant="outline" p={3} mb={2}>
+                  <VStack align="start" spacing={2}>
+                    <Heading size="sm" color="purple.500">
+                      {category}
+                    </Heading>
+                    {recs.map((rec, idx) => (
+                      <Box key={idx}>
+                        <Text>{rec.message}</Text>
+                        {rec.action && (
+                          <Button
+                            size="sm"
+                            colorScheme="purple"
+                            variant="outline"
+                            mt={2}
+                            onClick={() => {
+                              if (rec.action.startsWith('http')) {
+                                window.open(rec.action, '_blank');
+                              } else {
+                                handleNavigate(rec.action);
+                              }
+                            }}
+                          >
+                            {rec.actionText || 'Learn More'}
+                          </Button>
+                        )}
+                      </Box>
+                    ))}
+                  </VStack>
+                </Card>
               ))
             ) : (
               <Text>Keep up the good work! No specific recommendations at this time.</Text>
@@ -652,6 +689,12 @@ const Dashboard: React.FC = () => {
           </VStack>
         </CardBody>
       </Card>
+
+      <HStack spacing={4} mb={4} justify="center">
+        <Button colorScheme="blue" variant="ghost" onClick={() => handleNavigate('goals')}>Goals</Button>
+        <Button colorScheme="purple" variant="solid" onClick={() => handleNavigate('recommendations')}>Recommendations</Button>
+        <Button colorScheme="teal" variant="ghost" onClick={() => handleNavigate('preferences')}>Preferences</Button>
+      </HStack>
     </VStack>
   );
 };

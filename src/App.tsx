@@ -23,6 +23,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import LoadingSpinner from './components/shared/LoadingSpinner';
 import { useRouter } from 'next/router';
+import NavBar from './components/shared/NavBar';
 
 import LoginForm from './components/auth/LoginForm';
 import OnboardingFlow from './components/auth/OnboardingFlow';
@@ -30,7 +31,6 @@ import MealLogger from './components/meal-logging/MealLogger';
 import DailyOverview from './components/dashboard/DailyOverview';
 import NutritionChart from './components/dashboard/NutritionChart';
 import ProgressTracker from './components/dashboard/ProgressTracker';
-import RecommendationCard from './components/dashboard/RecommendationCard';
 import UserProfile from './components/profile/UserProfile';
 import GoalSetting from './components/profile/GoalSetting';
 import Preferences from './components/profile/Preferences';
@@ -224,55 +224,10 @@ export const AppCon: React.FC<AppConProps> = ({ children }) => {
 
   return (
     <Flex direction="column" minH="100vh">
-      {user && (
-        <Box bg="brand.700" py={4} px={8} boxShadow="md">
-          <HStack spacing={8} justifyContent="space-between" alignItems="center">
-            <Text fontSize="2xl" fontWeight="bold" color="white">
-              Fitness Tracker
-            </Text>
-            <HStack spacing={6}>
-              <ChakraLink onClick={() => router.push('/dashboard')} color="whiteAlpha.800">
-                Dashboard
-              </ChakraLink>
-              <ChakraLink onClick={() => router.push('/log-meal')} color="whiteAlpha.800">
-                Log Meal
-              </ChakraLink>
-              <ChakraLink onClick={() => router.push('/profile')} color="whiteAlpha.800">
-                Profile
-              </ChakraLink>
-              <ChakraLink onClick={() => router.push('/goals')} color="whiteAlpha.800">
-                Goals
-              </ChakraLink>
-              <ChakraLink onClick={() => router.push('/preferences')} color="whiteAlpha.800">
-                Preferences
-              </ChakraLink>
-            </HStack>
-            <HStack>
-              <Text color="whiteAlpha.700" fontSize="sm">
-                Logged in as: {user.email}
-              </Text>
-              <Button
-                onClick={signOut}
-                size="sm"
-                colorScheme="red"
-                variant="outline"
-                borderColor="red.300"
-                color="red.100"
-                _hover={{ bg: 'red.600', color: 'white' }}
-              >
-                Logout
-              </Button>
-            </HStack>
-          </HStack>
-        </Box>
-      )}
+      <NavBar />
 
       <Box flex="1" p={8} bg="brand.50">
         {children || renderContent()}
-      </Box>
-
-      <Box bg="brand.900" py={4} px={8} textAlign="center" color="whiteAlpha.600" fontSize="sm">
-        <Text>&copy; {new Date().getFullYear()} Personal Fitness Tracker. All rights reserved.</Text>
       </Box>
     </Flex>
   );
