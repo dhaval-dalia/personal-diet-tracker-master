@@ -13,6 +13,7 @@ interface Recommendation {
   action?: string;
   actionText?: string;
   created_at: string;
+  source?: string;
 }
 
 const RecommendationsPage: React.FC = () => {
@@ -27,6 +28,26 @@ const RecommendationsPage: React.FC = () => {
     setError(null);
     try {
       if (!user?.id) throw new Error('You must be logged in to view recommendations.');
+      
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_RECOMMENDATIONS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        throw new Error('Webhook URL is not configured');
+      }
+
+      // Call the n8n webhook with user ID
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id } as { userId: string }),
+      });
+
+      if (!webhookResponse.ok) {
+        throw new Error('Failed to trigger recommendations update');
+      }
+
+      // Fetch updated recommendations after webhook call
       const { data, error } = await supabase
         .from('recommendations')
         .select('*')
@@ -87,7 +108,26 @@ const RecommendationsPage: React.FC = () => {
         {Object.entries(grouped).map(([category, recs]) => (
           <Card key={category} boxShadow="xl" borderRadius="lg" p={4}>
             <CardHeader>
-              <Heading size="md">{category}</Heading>
+              <Box>
+                <Heading size="md" display="inline">
+                  {category.toUpperCase()} {(() => {
+                    if (category.toLowerCase() === 'fitness') return '🏋️';
+                    if (category.toLowerCase() === 'nutrition') return '🥗';
+                    if (category.toLowerCase() === 'lifestyle') return '🌱';
+                    return '';
+                  })()}
+                </Heading>
+                {recs[0].actionText && (
+                  <Text as="span" fontSize="md" ml={2} display="inline" verticalAlign="middle">
+                    {recs[0].actionText.charAt(0).toUpperCase() + recs[0].actionText.slice(1).toLowerCase()}
+                  </Text>
+                )}
+                <Box mt={1}>
+                  <Text as="cite" fontSize="xs" color="gray.500">
+                    powered by {recs[0].source ? recs[0].source.charAt(0).toUpperCase() + recs[0].source.slice(1).toLowerCase() : 'Unknown'} • {new Date(recs[0].created_at).toLocaleString()}
+                  </Text>
+                </Box>
+              </Box>
             </CardHeader>
             <CardBody>
               <VStack align="start" spacing={3}>

@@ -9,6 +9,11 @@ import {
   Stack,
   Heading,
   Text,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
 } from '@chakra-ui/react';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { useAuth } from '../../hooks/useAuth';
@@ -36,6 +41,7 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
   const { handleError, showToast } = useErrorHandling();
   const [isFetchingMacros, setIsFetchingMacros] = useState(false);
   const { user, session } = useAuth();
+  const [numberOfServings, setNumberOfServings] = useState(1);
 
   const {
     register,
@@ -43,6 +49,7 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
     setValue,
     formState: { errors, isSubmitting, isValid },
     reset,
+    watch,
   } = useForm<QuickAddFoodInputs>({
     resolver: zodResolver(quickAddFoodSchema),
     defaultValues: {
@@ -56,6 +63,17 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
     },
     mode: 'onChange',
   });
+
+  // Reset macro fields and servings
+  const resetMacrosAndServings = () => {
+    setValue('calories_per_serving', 0);
+    setValue('protein_per_serving', 0);
+    setValue('carbs_per_serving', 0);
+    setValue('fat_per_serving', 0);
+    setValue('serving_size', 1);
+    setValue('serving_unit', 'serving');
+    setNumberOfServings(1);
+  };
 
   // Function to fetch macro details using n8n webhook
   const fetchMacroDetails = async (foodName: string) => {
@@ -205,13 +223,22 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
   // Handle form submission for final logging
   const onSubmit = async (data: QuickAddFoodInputs) => {
     try {
-      await onQuickAdd(data);
+      const totalData = {
+        ...data,
+        calories_per_serving: data.calories_per_serving * numberOfServings,
+        protein_per_serving: data.protein_per_serving * numberOfServings,
+        carbs_per_serving: data.carbs_per_serving * numberOfServings,
+        fat_per_serving: data.fat_per_serving * numberOfServings,
+        serving_size: data.serving_size * numberOfServings,
+      };
+      await onQuickAdd(totalData);
       showToast({
         title: 'Food Added!',
         description: `${data.name} added to your meal.`,
         status: 'success',
       });
       reset();
+      setNumberOfServings(1);
     } catch (error) {
       handleError(error, 'Failed to quick add food');
     }
@@ -222,6 +249,7 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
     e.preventDefault(); // Prevent form submission
     const foodName = (document.getElementById('quick-name') as HTMLInputElement)?.value;
     if (foodName && foodName.trim().length > 0) {
+      resetMacrosAndServings(); // Reset before fetching
       fetchMacroDetails(foodName);
     } else {
       showToast({
@@ -431,6 +459,28 @@ const QuickAdd: React.FC<QuickAddProps> = ({ onQuickAdd }) => {
                 <p id="serving-unit-error" className="mt-1 text-sm text-red-600" role="alert">{errors.serving_unit.message}</p>
               )}
             </div>
+
+            <div>
+              <label htmlFor="quick-servings" className="block text-sm font-medium text-gray-700">
+                Number of Servings
+              </label>
+              <NumberInput
+                id="quick-servings"
+                min={1}
+                value={numberOfServings}
+                onChange={(_, value) => setNumberOfServings(value)}
+              >
+                <NumberInputField />
+                <NumberInputStepper>
+                  <NumberIncrementStepper />
+                  <NumberDecrementStepper />
+                </NumberInputStepper>
+              </NumberInput>
+            </div>
+
+            <Text fontSize="sm" color="gray.600" fontWeight="semibold">
+              Total: {watch('calories_per_serving', 0) * numberOfServings} kcal | {watch('protein_per_serving', 0) * numberOfServings}g P | {watch('carbs_per_serving', 0) * numberOfServings}g C | {watch('fat_per_serving', 0) * numberOfServings}g F
+            </Text>
 
             <Button
               type="submit"
